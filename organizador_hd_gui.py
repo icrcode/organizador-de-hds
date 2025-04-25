@@ -10,25 +10,25 @@ from PyQt6.QtWidgets import (QApplication, QMainWindow, QPushButton, QVBoxLayout
                            QButtonGroup, QTabWidget, QListWidget, QFrame,
                            QSplitter, QScrollArea, QCheckBox, QGroupBox, QGraphicsDropShadowEffect,
                            QSizePolicy, QSpacerItem)
-from PyQt6.QtCore import Qt, QThread, pyqtSignal, QSize, QPropertyAnimation, QEasingCurve, QRect, QPoint
+from PyQt6.QtCore import Qt, QThread, pyqtSignal, QSize, QPropertyAnimation, QEasingCurve, QRectF
 from PyQt6.QtGui import QFont, QIcon, QPalette, QColor, QPixmap, QLinearGradient, QPainter, QPainterPath, QBrush
 from mesclar_hds import mesclar_hds, obter_pasta_tipo_arquivo
 
-# Definição de estilos Apple-like com blur e translucidez
+# Definição de estilos Apple-like com cores sólidas (sem blur)
 STYLE = """
 QMainWindow, QDialog {
-    background-color: rgba(245, 245, 247, 0.95);
+    background-color: #f5f5f7;
     font-family: 'SF Pro Display', 'Helvetica Neue', Arial, sans-serif;
 }
 
 QTabWidget::pane {
     border: none;
-    background-color: rgba(245, 245, 247, 0.8);
+    background-color: #f5f5f7;
     border-radius: 12px;
 }
 
 QTabBar::tab {
-    background-color: rgba(220, 220, 225, 0.7);
+    background-color: #e0e0e5;
     color: #333333;
     padding: 10px 25px;
     border-top-left-radius: 10px;
@@ -39,12 +39,12 @@ QTabBar::tab {
 }
 
 QTabBar::tab:selected {
-    background-color: rgba(0, 122, 255, 0.8);
+    background-color: #007aff;
     color: white;
 }
 
 QPushButton {
-    background-color: rgba(0, 122, 255, 0.8);
+    background-color: #007aff;
     color: white;
     border: none;
     padding: 10px 20px;
@@ -55,20 +55,20 @@ QPushButton {
 }
 
 QPushButton:hover {
-    background-color: rgba(0, 122, 255, 0.9);
+    background-color: #0069d9;
 }
 
 QPushButton:pressed {
-    background-color: rgba(0, 122, 255, 1.0);
+    background-color: #0051a8;
 }
 
 QPushButton:disabled {
-    background-color: rgba(180, 180, 180, 0.7);
-    color: rgba(255, 255, 255, 0.7);
+    background-color: #b4b4b4;
+    color: #f0f0f0;
 }
 
 QTextEdit {
-    background-color: rgba(255, 255, 255, 0.7);
+    background-color: white;
     color: #333333;
     border: none;
     border-radius: 8px;
@@ -81,12 +81,12 @@ QProgressBar {
     border-radius: 8px;
     text-align: center;
     height: 8px;
-    background-color: rgba(220, 220, 225, 0.7);
+    background-color: #e0e0e5;
     color: transparent;
 }
 
 QProgressBar::chunk {
-    background-color: rgba(0, 122, 255, 0.8);
+    background-color: #007aff;
     border-radius: 8px;
 }
 
@@ -125,19 +125,19 @@ QRadioButton::indicator, QCheckBox::indicator {
 }
 
 QRadioButton::indicator:unchecked, QCheckBox::indicator:unchecked {
-    background-color: rgba(255, 255, 255, 0.7);
-    border: 1px solid rgba(0, 0, 0, 0.1);
+    background-color: white;
+    border: 1px solid #cccccc;
     border-radius: 10px;
 }
 
 QRadioButton::indicator:checked, QCheckBox::indicator:checked {
-    background-color: rgba(0, 122, 255, 0.8);
-    border: 1px solid rgba(0, 0, 0, 0.1);
+    background-color: #007aff;
+    border: 1px solid #007aff;
     border-radius: 10px;
 }
 
 QListWidget {
-    background-color: rgba(255, 255, 255, 0.7);
+    background-color: white;
     color: #333333;
     border: none;
     border-radius: 8px;
@@ -151,12 +151,12 @@ QListWidget::item {
 }
 
 QListWidget::item:selected {
-    background-color: rgba(0, 122, 255, 0.2);
+    background-color: #e6f2ff;
     color: #333333;
 }
 
 QListWidget::item:hover {
-    background-color: rgba(0, 0, 0, 0.05);
+    background-color: #f0f0f0;
 }
 
 QScrollBar:vertical {
@@ -167,13 +167,13 @@ QScrollBar:vertical {
 }
 
 QScrollBar::handle:vertical {
-    background-color: rgba(0, 0, 0, 0.2);
+    background-color: #cccccc;
     border-radius: 4px;
     min-height: 20px;
 }
 
 QScrollBar::handle:vertical:hover {
-    background-color: rgba(0, 0, 0, 0.3);
+    background-color: #b3b3b3;
 }
 
 QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
@@ -181,7 +181,7 @@ QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
 }
 
 QFrame#card {
-    background-color: rgba(255, 255, 255, 0.7);
+    background-color: white;
     border-radius: 12px;
     padding: 15px;
     margin: 8px;
@@ -189,12 +189,12 @@ QFrame#card {
 
 QGroupBox {
     color: #333333;
-    border: 1px solid rgba(0, 0, 0, 0.1);
+    border: 1px solid #e0e0e5;
     border-radius: 8px;
     margin-top: 1.5ex;
     padding-top: 1.5ex;
     font-weight: 500;
-    background-color: rgba(255, 255, 255, 0.5);
+    background-color: white;
 }
 
 QGroupBox::title {
@@ -246,8 +246,8 @@ def mover_para_duplicados(arquivo, pasta_duplicados):
     shutil.move(arquivo, destino)
     return destino
 
-class BlurredFrame(QFrame):
-    """Frame com efeito de blur e translucidez no estilo Apple"""
+class ModernFrame(QFrame):
+    """Frame com estilo moderno no estilo Apple"""
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setObjectName("card")
@@ -258,22 +258,6 @@ class BlurredFrame(QFrame):
         shadow.setColor(QColor(0, 0, 0, 40))
         shadow.setOffset(0, 2)
         self.setGraphicsEffect(shadow)
-        
-    def paintEvent(self, event):
-        painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        
-        # Criar caminho com cantos arredondados
-        path = QPainterPath()
-        path.addRoundedRect(QRect(0, 0, self.width(), self.height()), 12, 12)
-        
-        # Definir gradiente de fundo
-        gradient = QLinearGradient(0, 0, 0, self.height())
-        gradient.setColorAt(0, QColor(255, 255, 255, 180))
-        gradient.setColorAt(1, QColor(255, 255, 255, 160))
-        
-        # Preencher com gradiente
-        painter.fillPath(path, QBrush(gradient))
 
 class AnimatedButton(QPushButton):
     def __init__(self, text, parent=None):
@@ -483,7 +467,7 @@ class DuplicateFilesDialog(StyledDialog):
         layout.addWidget(title_label)
         
         # Container principal
-        main_container = BlurredFrame()
+        main_container = ModernFrame()
         main_layout = QVBoxLayout(main_container)
         main_layout.setContentsMargins(15, 15, 15, 15)
         main_layout.setSpacing(15)
@@ -504,7 +488,7 @@ class DuplicateFilesDialog(StyledDialog):
         main_layout.addWidget(scroll)
         
         # Opções
-        options_frame = BlurredFrame()
+        options_frame = ModernFrame()
         options_layout = QVBoxLayout(options_frame)
         
         options_title = QLabel("Escolha uma opção")
@@ -565,7 +549,7 @@ class BatchSettingsDialog(StyledDialog):
         layout.addWidget(title_label)
         
         # Container principal
-        main_container = BlurredFrame()
+        main_container = ModernFrame()
         main_layout = QVBoxLayout(main_container)
         main_layout.setContentsMargins(15, 15, 15, 15)
         main_layout.setSpacing(15)
@@ -654,13 +638,13 @@ class FolderActionDialog(StyledDialog):
         layout.addWidget(title_label)
         
         # Container principal
-        main_container = BlurredFrame()
+        main_container = ModernFrame()
         main_layout = QVBoxLayout(main_container)
         main_layout.setContentsMargins(15, 15, 15, 15)
         main_layout.setSpacing(15)
         
         # Informação das pastas
-        paths_frame = BlurredFrame()
+        paths_frame = ModernFrame()
         paths_layout = QVBoxLayout(paths_frame)
         
         paths_title = QLabel("Pastas encontradas")
@@ -672,7 +656,7 @@ class FolderActionDialog(StyledDialog):
         main_layout.addWidget(paths_frame)
         
         # Opções
-        options_frame = BlurredFrame()
+        options_frame = ModernFrame()
         options_layout = QVBoxLayout(options_frame)
         
         options_title = QLabel("Escolha uma opção")
@@ -779,13 +763,13 @@ class MainWindow(QMainWindow):
         layout.addWidget(title_label)
         
         # Container principal
-        main_container = BlurredFrame()
+        main_container = ModernFrame()
         main_layout = QVBoxLayout(main_container)
         main_layout.setContentsMargins(15, 15, 15, 15)
         main_layout.setSpacing(15)
         
         # Área de seleção do HD
-        hd_frame = BlurredFrame()
+        hd_frame = ModernFrame()
         hd_layout = QHBoxLayout(hd_frame)
         hd_layout.setContentsMargins(15, 15, 15, 15)
         
@@ -798,7 +782,7 @@ class MainWindow(QMainWindow):
         main_layout.addWidget(hd_frame)
         
         # Opções de processamento
-        options_frame = BlurredFrame()
+        options_frame = ModernFrame()
         options_layout = QVBoxLayout(options_frame)
         options_layout.setContentsMargins(15, 15, 15, 15)
         
@@ -825,7 +809,7 @@ class MainWindow(QMainWindow):
         main_layout.addWidget(options_frame)
         
         # Área de log
-        log_frame = BlurredFrame()
+        log_frame = ModernFrame()
         log_layout = QVBoxLayout(log_frame)
         log_layout.setContentsMargins(15, 15, 15, 15)
         
@@ -840,7 +824,7 @@ class MainWindow(QMainWindow):
         main_layout.addWidget(log_frame)
         
         # Barra de progresso
-        progress_frame = BlurredFrame()
+        progress_frame = ModernFrame()
         progress_layout = QVBoxLayout(progress_frame)
         progress_layout.setContentsMargins(15, 15, 15, 15)
         
@@ -881,13 +865,13 @@ class MainWindow(QMainWindow):
         layout.addWidget(title_label)
         
         # Container principal
-        main_container = BlurredFrame()
+        main_container = ModernFrame()
         main_layout = QVBoxLayout(main_container)
         main_layout.setContentsMargins(15, 15, 15, 15)
         main_layout.setSpacing(15)
         
         # Área de seleção dos HDs
-        hds_frame = BlurredFrame()
+        hds_frame = ModernFrame()
         hds_layout = QVBoxLayout(hds_frame)
         hds_layout.setContentsMargins(15, 15, 15, 15)
         hds_layout.setSpacing(10)
@@ -921,7 +905,7 @@ class MainWindow(QMainWindow):
         main_layout.addWidget(hds_frame)
         
         # Opções de mesclagem
-        options_frame = BlurredFrame()
+        options_frame = ModernFrame()
         options_layout = QVBoxLayout(options_frame)
         options_layout.setContentsMargins(15, 15, 15, 15)
         
@@ -943,7 +927,7 @@ class MainWindow(QMainWindow):
         main_layout.addWidget(options_frame)
         
         # Área de log
-        log_frame = BlurredFrame()
+        log_frame = ModernFrame()
         log_layout = QVBoxLayout(log_frame)
         log_layout.setContentsMargins(15, 15, 15, 15)
         
@@ -958,7 +942,7 @@ class MainWindow(QMainWindow):
         main_layout.addWidget(log_frame)
         
         # Barra de progresso
-        progress_frame = BlurredFrame()
+        progress_frame = ModernFrame()
         progress_layout = QVBoxLayout(progress_frame)
         progress_layout.setContentsMargins(15, 15, 15, 15)
         

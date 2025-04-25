@@ -8,145 +8,172 @@ from PyQt6.QtWidgets import (QApplication, QMainWindow, QPushButton, QVBoxLayout
                            QHBoxLayout, QWidget, QLabel, QFileDialog, QTextEdit,
                            QMessageBox, QProgressBar, QDialog, QRadioButton, 
                            QButtonGroup, QTabWidget, QListWidget, QFrame,
-                           QSplitter, QScrollArea, QCheckBox, QGroupBox)
-from PyQt6.QtCore import Qt, QThread, pyqtSignal, QSize, QPropertyAnimation, QEasingCurve
-from PyQt6.QtGui import QFont, QIcon, QPalette, QColor, QPixmap
+                           QSplitter, QScrollArea, QCheckBox, QGroupBox, QGraphicsDropShadowEffect,
+                           QSizePolicy, QSpacerItem)
+from PyQt6.QtCore import Qt, QThread, pyqtSignal, QSize, QPropertyAnimation, QEasingCurve, QRect, QPoint
+from PyQt6.QtGui import QFont, QIcon, QPalette, QColor, QPixmap, QLinearGradient, QPainter, QPainterPath, QBrush
 from mesclar_hds import mesclar_hds, obter_pasta_tipo_arquivo
 
-# Definição de estilos
+# Definição de estilos Apple-like com blur e translucidez
 STYLE = """
 QMainWindow, QDialog {
-    background-color: #2b2b2b;
+    background-color: rgba(245, 245, 247, 0.95);
+    font-family: 'SF Pro Display', 'Helvetica Neue', Arial, sans-serif;
 }
 
 QTabWidget::pane {
-    border: 1px solid #3d3d3d;
-    background-color: #2b2b2b;
-    border-radius: 5px;
+    border: none;
+    background-color: rgba(245, 245, 247, 0.8);
+    border-radius: 12px;
 }
 
 QTabBar::tab {
-    background-color: #3d3d3d;
-    color: #ffffff;
-    padding: 8px 20px;
-    border-top-left-radius: 5px;
-    border-top-right-radius: 5px;
+    background-color: rgba(220, 220, 225, 0.7);
+    color: #333333;
+    padding: 10px 25px;
+    border-top-left-radius: 10px;
+    border-top-right-radius: 10px;
     margin-right: 2px;
+    font-weight: 500;
+    font-size: 13px;
 }
 
 QTabBar::tab:selected {
-    background-color: #0d47a1;
+    background-color: rgba(0, 122, 255, 0.8);
+    color: white;
 }
 
 QPushButton {
-    background-color: #0d47a1;
+    background-color: rgba(0, 122, 255, 0.8);
     color: white;
     border: none;
-    padding: 8px 15px;
-    border-radius: 4px;
-    font-weight: bold;
-    min-height: 30px;
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 13px;
+    min-height: 36px;
 }
 
 QPushButton:hover {
-    background-color: #1565c0;
+    background-color: rgba(0, 122, 255, 0.9);
 }
 
 QPushButton:pressed {
-    background-color: #0a3d87;
+    background-color: rgba(0, 122, 255, 1.0);
 }
 
 QPushButton:disabled {
-    background-color: #666666;
+    background-color: rgba(180, 180, 180, 0.7);
+    color: rgba(255, 255, 255, 0.7);
 }
 
 QTextEdit {
-    background-color: #1e1e1e;
-    color: #ffffff;
-    border: 1px solid #3d3d3d;
-    border-radius: 4px;
-    padding: 5px;
-    selection-background-color: #0d47a1;
+    background-color: rgba(255, 255, 255, 0.7);
+    color: #333333;
+    border: none;
+    border-radius: 8px;
+    padding: 8px;
+    selection-background-color: rgba(0, 122, 255, 0.3);
 }
 
 QProgressBar {
-    border: 2px solid #3d3d3d;
-    border-radius: 5px;
+    border: none;
+    border-radius: 8px;
     text-align: center;
-    height: 25px;
-    background-color: #1e1e1e;
-    color: white;
+    height: 8px;
+    background-color: rgba(220, 220, 225, 0.7);
+    color: transparent;
 }
 
 QProgressBar::chunk {
-    background-color: #0d47a1;
-    border-radius: 3px;
+    background-color: rgba(0, 122, 255, 0.8);
+    border-radius: 8px;
 }
 
 QLabel {
-    color: #ffffff;
-    font-size: 12px;
+    color: #333333;
+    font-size: 13px;
+}
+
+QLabel#title {
+    font-size: 24px;
+    font-weight: bold;
+    color: #333333;
+}
+
+QLabel#subtitle {
+    font-size: 16px;
+    font-weight: 500;
+    color: #666666;
+}
+
+QLabel#info {
+    font-size: 13px;
+    color: #888888;
 }
 
 QRadioButton, QCheckBox {
-    color: #ffffff;
+    color: #333333;
     spacing: 8px;
-    padding: 2px;
+    padding: 4px;
+    font-size: 13px;
 }
 
 QRadioButton::indicator, QCheckBox::indicator {
-    width: 18px;
-    height: 18px;
+    width: 20px;
+    height: 20px;
 }
 
 QRadioButton::indicator:unchecked, QCheckBox::indicator:unchecked {
-    background-color: #1e1e1e;
-    border: 2px solid #3d3d3d;
-    border-radius: 9px;
+    background-color: rgba(255, 255, 255, 0.7);
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    border-radius: 10px;
 }
 
 QRadioButton::indicator:checked, QCheckBox::indicator:checked {
-    background-color: #0d47a1;
-    border: 2px solid #3d3d3d;
-    border-radius: 9px;
+    background-color: rgba(0, 122, 255, 0.8);
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    border-radius: 10px;
 }
 
 QListWidget {
-    background-color: #1e1e1e;
-    color: #ffffff;
-    border: 1px solid #3d3d3d;
-    border-radius: 4px;
+    background-color: rgba(255, 255, 255, 0.7);
+    color: #333333;
+    border: none;
+    border-radius: 8px;
     padding: 5px;
 }
 
 QListWidget::item {
-    padding: 5px;
-    border-radius: 3px;
+    padding: 8px;
+    border-radius: 6px;
+    margin: 2px;
 }
 
 QListWidget::item:selected {
-    background-color: #0d47a1;
+    background-color: rgba(0, 122, 255, 0.2);
+    color: #333333;
 }
 
 QListWidget::item:hover {
-    background-color: #3d3d3d;
+    background-color: rgba(0, 0, 0, 0.05);
 }
 
 QScrollBar:vertical {
     border: none;
-    background-color: #1e1e1e;
-    width: 12px;
+    background-color: transparent;
+    width: 8px;
     margin: 0px;
 }
 
 QScrollBar::handle:vertical {
-    background-color: #3d3d3d;
-    border-radius: 6px;
+    background-color: rgba(0, 0, 0, 0.2);
+    border-radius: 4px;
     min-height: 20px;
 }
 
 QScrollBar::handle:vertical:hover {
-    background-color: #4d4d4d;
+    background-color: rgba(0, 0, 0, 0.3);
 }
 
 QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
@@ -154,29 +181,31 @@ QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
 }
 
 QFrame#card {
-    background-color: #3d3d3d;
-    border-radius: 8px;
-    padding: 10px;
-    margin: 5px;
+    background-color: rgba(255, 255, 255, 0.7);
+    border-radius: 12px;
+    padding: 15px;
+    margin: 8px;
 }
 
 QGroupBox {
-    color: #ffffff;
-    border: 1px solid #3d3d3d;
-    border-radius: 5px;
+    color: #333333;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    border-radius: 8px;
     margin-top: 1.5ex;
     padding-top: 1.5ex;
-    font-weight: bold;
+    font-weight: 500;
+    background-color: rgba(255, 255, 255, 0.5);
 }
 
 QGroupBox::title {
     subcontrol-origin: margin;
     subcontrol-position: top center;
-    padding: 0 5px;
+    padding: 0 8px;
+    color: #666666;
 }
 
 QWidget {
-    font-family: 'Segoe UI', Arial, sans-serif;
+    font-family: 'SF Pro Display', 'Helvetica Neue', Arial, sans-serif;
 }
 """
 
@@ -216,6 +245,67 @@ def mover_para_duplicados(arquivo, pasta_duplicados):
     # Mover o arquivo
     shutil.move(arquivo, destino)
     return destino
+
+class BlurredFrame(QFrame):
+    """Frame com efeito de blur e translucidez no estilo Apple"""
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setObjectName("card")
+        
+        # Adicionar sombra
+        shadow = QGraphicsDropShadowEffect(self)
+        shadow.setBlurRadius(15)
+        shadow.setColor(QColor(0, 0, 0, 40))
+        shadow.setOffset(0, 2)
+        self.setGraphicsEffect(shadow)
+        
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        
+        # Criar caminho com cantos arredondados
+        path = QPainterPath()
+        path.addRoundedRect(QRect(0, 0, self.width(), self.height()), 12, 12)
+        
+        # Definir gradiente de fundo
+        gradient = QLinearGradient(0, 0, 0, self.height())
+        gradient.setColorAt(0, QColor(255, 255, 255, 180))
+        gradient.setColorAt(1, QColor(255, 255, 255, 160))
+        
+        # Preencher com gradiente
+        painter.fillPath(path, QBrush(gradient))
+
+class AnimatedButton(QPushButton):
+    def __init__(self, text, parent=None):
+        super().__init__(text, parent)
+        self.setMinimumHeight(40)
+        self._animation = QPropertyAnimation(self, b"size")
+        self._animation.setDuration(100)
+        self._animation.setEasingCurve(QEasingCurve.Type.OutQuad)
+        self.original_size = None
+        
+        # Adicionar sombra
+        shadow = QGraphicsDropShadowEffect(self)
+        shadow.setBlurRadius(10)
+        shadow.setColor(QColor(0, 0, 0, 50))
+        shadow.setOffset(0, 2)
+        self.setGraphicsEffect(shadow)
+    
+    def enterEvent(self, event):
+        if not self.original_size:
+            self.original_size = self.size()
+        target_size = QSize(int(self.width() * 1.03), int(self.height() * 1.03))
+        self._animation.setStartValue(self.size())
+        self._animation.setEndValue(target_size)
+        self._animation.start()
+        super().enterEvent(event)
+    
+    def leaveEvent(self, event):
+        if self.original_size:
+            self._animation.setStartValue(self.size())
+            self._animation.setEndValue(self.original_size)
+            self._animation.start()
+        super().leaveEvent(event)
 
 class OrganizadorThread(QThread):
     progress_signal = pyqtSignal(str)
@@ -364,31 +454,6 @@ class OrganizadorThread(QThread):
         elif duplicados:
             self.duplicates_signal.emit(duplicados)
 
-class AnimatedButton(QPushButton):
-    def __init__(self, text, parent=None):
-        super().__init__(text, parent)
-        self.setMinimumHeight(40)
-        self._animation = QPropertyAnimation(self, b"size")
-        self._animation.setDuration(100)
-        self._animation.setEasingCurve(QEasingCurve.Type.OutQuad)
-        self.original_size = None
-    
-    def enterEvent(self, event):
-        if not self.original_size:
-            self.original_size = self.size()
-        target_size = QSize(int(self.width() * 1.05), int(self.height() * 1.05))
-        self._animation.setStartValue(self.size())
-        self._animation.setEndValue(target_size)
-        self._animation.start()
-        super().enterEvent(event)
-    
-    def leaveEvent(self, event):
-        if self.original_size:
-            self._animation.setStartValue(self.size())
-            self._animation.setEndValue(self.original_size)
-            self._animation.start()
-        super().leaveEvent(event)
-
 class StyledDialog(QDialog):
     def __init__(self, title, parent=None):
         super().__init__(parent)
@@ -396,26 +461,37 @@ class StyledDialog(QDialog):
         self.setModal(True)
         self.setStyleSheet(STYLE)
         self.setMinimumSize(700, 500)
+        
+        # Configurar efeito de sombra para a janela
+        shadow = QGraphicsDropShadowEffect(self)
+        shadow.setBlurRadius(20)
+        shadow.setColor(QColor(0, 0, 0, 80))
+        shadow.setOffset(0, 4)
+        self.setGraphicsEffect(shadow)
 
 class DuplicateFilesDialog(StyledDialog):
     def __init__(self, arquivos, parent=None):
         super().__init__("Arquivos Duplicados Encontrados", parent)
         
         layout = QVBoxLayout()
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(15)
         
         # Título
         title_label = QLabel("Arquivos Duplicados Encontrados")
-        title_label.setStyleSheet("font-size: 18px; font-weight: bold; margin-bottom: 10px;")
+        title_label.setObjectName("title")
         layout.addWidget(title_label)
         
         # Container principal
-        main_container = QFrame()
-        main_container.setObjectName("card")
+        main_container = BlurredFrame()
         main_layout = QVBoxLayout(main_container)
+        main_layout.setContentsMargins(15, 15, 15, 15)
+        main_layout.setSpacing(15)
         
         # Lista de arquivos com scroll
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
         list_container = QWidget()
         list_layout = QVBoxLayout(list_container)
         
@@ -428,9 +504,12 @@ class DuplicateFilesDialog(StyledDialog):
         main_layout.addWidget(scroll)
         
         # Opções
-        options_frame = QFrame()
-        options_frame.setObjectName("card")
+        options_frame = BlurredFrame()
         options_layout = QVBoxLayout(options_frame)
+        
+        options_title = QLabel("Escolha uma opção")
+        options_title.setObjectName("subtitle")
+        options_layout.addWidget(options_title)
         
         self.radio_group = QButtonGroup()
         options = [
@@ -441,22 +520,34 @@ class DuplicateFilesDialog(StyledDialog):
         
         for i, text in enumerate(options):
             radio = QRadioButton(text)
-            radio.setStyleSheet("font-size: 14px;")
             self.radio_group.addButton(radio, i)
             options_layout.addWidget(radio)
+        
+        # Seleciona a primeira opção por padrão
+        self.radio_group.button(0).setChecked(True)
         
         main_layout.addWidget(options_frame)
         layout.addWidget(main_container)
         
         # Informação sobre organização por tipo
         info_label = QLabel("Os arquivos duplicados serão organizados em subpastas por tipo (PDFs, Imagens, etc.)")
-        info_label.setStyleSheet("font-size: 14px; color: #aaaaaa; margin-top: 10px;")
+        info_label.setObjectName("info")
         layout.addWidget(info_label)
         
-        # Botão de confirmação
+        # Botões
+        buttons_layout = QHBoxLayout()
+        buttons_layout.addStretch()
+        
+        cancel_btn = AnimatedButton("Cancelar")
+        cancel_btn.clicked.connect(self.reject)
+        
         confirm_btn = AnimatedButton("Confirmar")
         confirm_btn.clicked.connect(self.accept)
-        layout.addWidget(confirm_btn)
+        
+        buttons_layout.addWidget(cancel_btn)
+        buttons_layout.addWidget(confirm_btn)
+        
+        layout.addLayout(buttons_layout)
         
         self.setLayout(layout)
 
@@ -465,20 +556,24 @@ class BatchSettingsDialog(StyledDialog):
         super().__init__("Configurações de Processamento em Lote", parent)
         
         layout = QVBoxLayout()
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(15)
         
         # Título
         title_label = QLabel("Configurações de Processamento em Lote")
-        title_label.setStyleSheet("font-size: 18px; font-weight: bold; margin-bottom: 10px;")
+        title_label.setObjectName("title")
         layout.addWidget(title_label)
         
         # Container principal
-        main_container = QFrame()
-        main_container.setObjectName("card")
+        main_container = BlurredFrame()
         main_layout = QVBoxLayout(main_container)
+        main_layout.setContentsMargins(15, 15, 15, 15)
+        main_layout.setSpacing(15)
         
         # Opções para arquivos duplicados
         duplicate_group = QGroupBox("Tratamento de Arquivos Duplicados")
         duplicate_layout = QVBoxLayout(duplicate_group)
+        duplicate_layout.setSpacing(10)
         
         self.duplicate_radio_group = QButtonGroup()
         duplicate_options = [
@@ -490,7 +585,6 @@ class BatchSettingsDialog(StyledDialog):
         
         for i, text in enumerate(duplicate_options):
             radio = QRadioButton(text)
-            radio.setStyleSheet("font-size: 14px;")
             self.duplicate_radio_group.addButton(radio, i)
             duplicate_layout.addWidget(radio)
         
@@ -502,6 +596,7 @@ class BatchSettingsDialog(StyledDialog):
         # Opções para pastas duplicadas
         folder_group = QGroupBox("Tratamento de Pastas Duplicadas")
         folder_layout = QVBoxLayout(folder_group)
+        folder_layout.setSpacing(10)
         
         self.folder_radio_group = QButtonGroup()
         folder_options = [
@@ -513,7 +608,6 @@ class BatchSettingsDialog(StyledDialog):
         
         for i, text in enumerate(folder_options):
             radio = QRadioButton(text)
-            radio.setStyleSheet("font-size: 14px;")
             self.folder_radio_group.addButton(radio, i)
             folder_layout.addWidget(radio)
         
@@ -524,13 +618,14 @@ class BatchSettingsDialog(StyledDialog):
         
         # Informação sobre organização por tipo
         info_label = QLabel("Os arquivos duplicados serão organizados em subpastas por tipo (PDFs, Imagens, etc.)")
-        info_label.setStyleSheet("font-size: 14px; color: #aaaaaa; margin-top: 10px;")
+        info_label.setObjectName("info")
         main_layout.addWidget(info_label)
         
         layout.addWidget(main_container)
         
         # Botões
         buttons_layout = QHBoxLayout()
+        buttons_layout.addStretch()
         
         cancel_btn = AnimatedButton("Cancelar")
         cancel_btn.clicked.connect(self.reject)
@@ -550,29 +645,39 @@ class FolderActionDialog(StyledDialog):
         super().__init__("Ação para Pastas Duplicadas")
         
         layout = QVBoxLayout()
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(15)
         
         # Título
         title_label = QLabel("Pastas Idênticas Encontradas")
-        title_label.setStyleSheet("font-size: 18px; font-weight: bold; margin-bottom: 10px;")
+        title_label.setObjectName("title")
         layout.addWidget(title_label)
         
         # Container principal
-        main_container = QFrame()
-        main_container.setObjectName("card")
+        main_container = BlurredFrame()
         main_layout = QVBoxLayout(main_container)
+        main_layout.setContentsMargins(15, 15, 15, 15)
+        main_layout.setSpacing(15)
         
         # Informação das pastas
-        paths_frame = QFrame()
-        paths_frame.setObjectName("card")
+        paths_frame = BlurredFrame()
         paths_layout = QVBoxLayout(paths_frame)
+        
+        paths_title = QLabel("Pastas encontradas")
+        paths_title.setObjectName("subtitle")
+        paths_layout.addWidget(paths_title)
+        
         paths_layout.addWidget(QLabel(f"1: {folder1}"))
         paths_layout.addWidget(QLabel(f"2: {folder2}"))
         main_layout.addWidget(paths_frame)
         
         # Opções
-        options_frame = QFrame()
-        options_frame.setObjectName("card")
+        options_frame = BlurredFrame()
         options_layout = QVBoxLayout(options_frame)
+        
+        options_title = QLabel("Escolha uma opção")
+        options_title.setObjectName("subtitle")
+        options_layout.addWidget(options_title)
         
         self.radio_group = QButtonGroup()
         options = [
@@ -584,17 +689,29 @@ class FolderActionDialog(StyledDialog):
         
         for i, text in enumerate(options):
             radio = QRadioButton(text)
-            radio.setStyleSheet("font-size: 14px;")
             self.radio_group.addButton(radio, i)
             options_layout.addWidget(radio)
+        
+        # Seleciona a primeira opção por padrão
+        self.radio_group.button(0).setChecked(True)
         
         main_layout.addWidget(options_frame)
         layout.addWidget(main_container)
         
-        # Botão de confirmação
+        # Botões
+        buttons_layout = QHBoxLayout()
+        buttons_layout.addStretch()
+        
+        cancel_btn = AnimatedButton("Cancelar")
+        cancel_btn.clicked.connect(self.reject)
+        
         confirm_btn = AnimatedButton("Confirmar")
         confirm_btn.clicked.connect(self.accept)
-        layout.addWidget(confirm_btn)
+        
+        buttons_layout.addWidget(cancel_btn)
+        buttons_layout.addWidget(confirm_btn)
+        
+        layout.addLayout(buttons_layout)
         
         self.setLayout(layout)
 
@@ -652,43 +769,45 @@ class MainWindow(QMainWindow):
         
     def setup_tab_organizacao(self):
         layout = QVBoxLayout()
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(15)
         
         # Título
         title_label = QLabel("Organizador de HD")
-        title_label.setStyleSheet("font-size: 24px; font-weight: bold; margin: 20px 0;")
+        title_label.setObjectName("title")
         title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(title_label)
         
         # Container principal
-        main_container = QFrame()
-        main_container.setObjectName("card")
+        main_container = BlurredFrame()
         main_layout = QVBoxLayout(main_container)
+        main_layout.setContentsMargins(15, 15, 15, 15)
+        main_layout.setSpacing(15)
         
         # Área de seleção do HD
-        hd_frame = QFrame()
-        hd_frame.setObjectName("card")
+        hd_frame = BlurredFrame()
         hd_layout = QHBoxLayout(hd_frame)
+        hd_layout.setContentsMargins(15, 15, 15, 15)
         
         self.path_label = QLabel("Nenhum HD selecionado")
         select_btn = AnimatedButton("Selecionar HD")
         select_btn.clicked.connect(self.select_hd)
         
-        hd_layout.addWidget(self.path_label)
+        hd_layout.addWidget(self.path_label, 1)
         hd_layout.addWidget(select_btn)
         main_layout.addWidget(hd_frame)
         
         # Opções de processamento
-        options_frame = QFrame()
-        options_frame.setObjectName("card")
+        options_frame = BlurredFrame()
         options_layout = QVBoxLayout(options_frame)
+        options_layout.setContentsMargins(15, 15, 15, 15)
         
         options_title = QLabel("Opções de Processamento")
-        options_title.setStyleSheet("font-size: 16px; font-weight: bold;")
+        options_title.setObjectName("subtitle")
         options_layout.addWidget(options_title)
         
         # Checkbox para modo de lote
         self.batch_checkbox = QCheckBox("Processar todos os arquivos de uma vez (modo lote)")
-        self.batch_checkbox.setStyleSheet("font-size: 14px;")
         self.batch_checkbox.toggled.connect(self.toggle_batch_mode)
         options_layout.addWidget(self.batch_checkbox)
         
@@ -700,18 +819,18 @@ class MainWindow(QMainWindow):
         
         # Informação sobre organização por tipo
         info_label = QLabel("Os arquivos duplicados serão organizados em subpastas por tipo (PDFs, Imagens, etc.)")
-        info_label.setStyleSheet("font-size: 14px; color: #aaaaaa; margin-top: 10px;")
+        info_label.setObjectName("info")
         options_layout.addWidget(info_label)
         
         main_layout.addWidget(options_frame)
         
         # Área de log
-        log_frame = QFrame()
-        log_frame.setObjectName("card")
+        log_frame = BlurredFrame()
         log_layout = QVBoxLayout(log_frame)
+        log_layout.setContentsMargins(15, 15, 15, 15)
         
         log_title = QLabel("Log de Operações")
-        log_title.setStyleSheet("font-size: 16px; font-weight: bold;")
+        log_title.setObjectName("subtitle")
         log_layout.addWidget(log_title)
         
         self.log_area = QTextEdit()
@@ -721,9 +840,13 @@ class MainWindow(QMainWindow):
         main_layout.addWidget(log_frame)
         
         # Barra de progresso
-        progress_frame = QFrame()
-        progress_frame.setObjectName("card")
+        progress_frame = BlurredFrame()
         progress_layout = QVBoxLayout(progress_frame)
+        progress_layout.setContentsMargins(15, 15, 15, 15)
+        
+        progress_title = QLabel("Progresso")
+        progress_title.setObjectName("subtitle")
+        progress_layout.addWidget(progress_title)
         
         self.progress_bar = QProgressBar()
         self.progress_bar.setTextVisible(True)
@@ -733,83 +856,99 @@ class MainWindow(QMainWindow):
         main_layout.addWidget(progress_frame)
         
         # Botão de início
+        buttons_layout = QHBoxLayout()
+        buttons_layout.addStretch()
+        
         self.start_btn = AnimatedButton("Iniciar Organização")
         self.start_btn.clicked.connect(self.start_organization)
         self.start_btn.setEnabled(False)
-        main_layout.addWidget(self.start_btn)
+        buttons_layout.addWidget(self.start_btn)
+        
+        main_layout.addLayout(buttons_layout)
         
         layout.addWidget(main_container)
         self.tab_organizacao.setLayout(layout)
         
     def setup_tab_mesclagem(self):
         layout = QVBoxLayout()
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(15)
         
         # Título
         title_label = QLabel("Mesclar HDs")
-        title_label.setStyleSheet("font-size: 24px; font-weight: bold; margin: 20px 0;")
+        title_label.setObjectName("title")
         title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(title_label)
         
         # Container principal
-        main_container = QFrame()
-        main_container.setObjectName("card")
+        main_container = BlurredFrame()
         main_layout = QVBoxLayout(main_container)
+        main_layout.setContentsMargins(15, 15, 15, 15)
+        main_layout.setSpacing(15)
         
         # Área de seleção dos HDs
-        hds_frame = QFrame()
-        hds_frame.setObjectName("card")
+        hds_frame = BlurredFrame()
         hds_layout = QVBoxLayout(hds_frame)
+        hds_layout.setContentsMargins(15, 15, 15, 15)
+        hds_layout.setSpacing(10)
+        
+        hds_title = QLabel("Selecione os HDs")
+        hds_title.setObjectName("subtitle")
+        hds_layout.addWidget(hds_title)
         
         # HD Destino
         destino_layout = QHBoxLayout()
+        destino_label_title = QLabel("HD Destino:")
         self.destino_label = QLabel("Nenhum HD destino selecionado")
-        select_destino_btn = AnimatedButton("Selecionar HD Destino")
+        select_destino_btn = AnimatedButton("Selecionar")
         select_destino_btn.clicked.connect(self.select_hd_destino)
-        destino_layout.addWidget(self.destino_label)
+        destino_layout.addWidget(destino_label_title)
+        destino_layout.addWidget(self.destino_label, 1)
         destino_layout.addWidget(select_destino_btn)
         hds_layout.addLayout(destino_layout)
         
         # HD Origem
         origem_layout = QHBoxLayout()
+        origem_label_title = QLabel("HD Origem:")
         self.origem_label = QLabel("Nenhum HD origem selecionado")
-        select_origem_btn = AnimatedButton("Selecionar HD Origem")
+        select_origem_btn = AnimatedButton("Selecionar")
         select_origem_btn.clicked.connect(self.select_hd_origem)
-        origem_layout.addWidget(self.origem_label)
+        origem_layout.addWidget(origem_label_title)
+        origem_layout.addWidget(self.origem_label, 1)
         origem_layout.addWidget(select_origem_btn)
         hds_layout.addLayout(origem_layout)
         
         main_layout.addWidget(hds_frame)
         
         # Opções de mesclagem
-        options_frame = QFrame()
-        options_frame.setObjectName("card")
+        options_frame = BlurredFrame()
         options_layout = QVBoxLayout(options_frame)
+        options_layout.setContentsMargins(15, 15, 15, 15)
         
         options_title = QLabel("Opções de Mesclagem")
-        options_title.setStyleSheet("font-size: 16px; font-weight: bold;")
+        options_title.setObjectName("subtitle")
         options_layout.addWidget(options_title)
         
         # Checkbox para manter primeiro arquivo
         self.manter_primeiro_checkbox = QCheckBox("Manter primeiro arquivo e mover duplicatas para pasta 'Arquivos Duplicados'")
-        self.manter_primeiro_checkbox.setStyleSheet("font-size: 14px;")
         self.manter_primeiro_checkbox.setChecked(True)
         self.manter_primeiro_checkbox.toggled.connect(self.toggle_manter_primeiro)
         options_layout.addWidget(self.manter_primeiro_checkbox)
         
         # Informação sobre organização por tipo
         info_label = QLabel("Os arquivos duplicados serão organizados em subpastas por tipo (PDFs, Imagens, etc.)")
-        info_label.setStyleSheet("font-size: 14px; color: #aaaaaa; margin-top: 10px;")
+        info_label.setObjectName("info")
         options_layout.addWidget(info_label)
         
         main_layout.addWidget(options_frame)
         
         # Área de log
-        log_frame = QFrame()
-        log_frame.setObjectName("card")
+        log_frame = BlurredFrame()
         log_layout = QVBoxLayout(log_frame)
+        log_layout.setContentsMargins(15, 15, 15, 15)
         
         log_title = QLabel("Log de Mesclagem")
-        log_title.setStyleSheet("font-size: 16px; font-weight: bold;")
+        log_title.setObjectName("subtitle")
         log_layout.addWidget(log_title)
         
         self.log_mesclagem = QTextEdit()
@@ -819,9 +958,13 @@ class MainWindow(QMainWindow):
         main_layout.addWidget(log_frame)
         
         # Barra de progresso
-        progress_frame = QFrame()
-        progress_frame.setObjectName("card")
+        progress_frame = BlurredFrame()
         progress_layout = QVBoxLayout(progress_frame)
+        progress_layout.setContentsMargins(15, 15, 15, 15)
+        
+        progress_title = QLabel("Progresso")
+        progress_title.setObjectName("subtitle")
+        progress_layout.addWidget(progress_title)
         
         self.progress_mesclagem = QProgressBar()
         self.progress_mesclagem.setTextVisible(True)
@@ -831,10 +974,15 @@ class MainWindow(QMainWindow):
         main_layout.addWidget(progress_frame)
         
         # Botão de início
+        buttons_layout = QHBoxLayout()
+        buttons_layout.addStretch()
+        
         self.start_mesclar_btn = AnimatedButton("Iniciar Mesclagem")
         self.start_mesclar_btn.clicked.connect(self.start_mesclagem)
         self.start_mesclar_btn.setEnabled(False)
-        main_layout.addWidget(self.start_mesclar_btn)
+        buttons_layout.addWidget(self.start_mesclar_btn)
+        
+        main_layout.addLayout(buttons_layout)
         
         layout.addWidget(main_container)
         self.tab_mesclagem.setLayout(layout)

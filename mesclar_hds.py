@@ -19,10 +19,16 @@ def mover_para_duplicados(arquivo_origem, pasta_duplicados):
     shutil.move(arquivo_origem, destino)
     return destino
 
-def mesclar_hds(hd_destino, hd_origem):
+def mesclar_hds(hd_destino, hd_origem, manter_primeiro=True, progress_callback=None):
     """
     Mescla o conteúdo de dois HDs, movendo todos os arquivos do HD de origem para o HD de destino.
     Arquivos duplicados são movidos para uma pasta especial.
+    
+    Args:
+        hd_destino: Caminho do HD de destino
+        hd_origem: Caminho do HD de origem
+        manter_primeiro: Se True, mantém o primeiro arquivo e move duplicatas para pasta de duplicados
+        progress_callback: Função de callback para atualizar o progresso (valor, máximo)
     """
     # Validar caminhos
     if not os.path.exists(hd_destino) or not os.path.exists(hd_origem):
@@ -46,11 +52,17 @@ def mesclar_hds(hd_destino, hd_origem):
     print("\n=== Iniciando processo de mesclagem de HDs ===")
     print(f"HD Destino: {hd_destino}")
     print(f"HD Origem: {hd_origem}")
+    print(f"Modo: {'Manter primeiro arquivo' if manter_primeiro else 'Modo padrão'}")
+    
+    # Contar total de arquivos para barra de progresso
+    total_files = sum([len(files) for _, _, files in os.walk(hd_origem)])
+    processed_files = 0
     
     with open(log_file, 'a', encoding='utf-8') as log:
         log.write(f"\n=== Nova operação de mesclagem ===\n")
         log.write(f"HD Origem: {hd_origem}\n")
-        log.write(f"HD Destino: {hd_destino}\n\n")
+        log.write(f"HD Destino: {hd_destino}\n")
+        log.write(f"Modo: {'Manter primeiro arquivo' if manter_primeiro else 'Modo padrão'}\n\n")
         
         # Percorrer toda a estrutura do HD de origem
         for pasta_atual, subpastas, arquivos in os.walk(hd_origem):
@@ -72,7 +84,8 @@ def mesclar_hds(hd_destino, hd_origem):
                 if os.path.exists(arquivo_destino):
                     # Comparar conteúdo dos arquivos
                     if filecmp.cmp(arquivo_origem, arquivo_destino, shallow=False):
-                        # Se são idênticos, move o arquivo de origem para pasta de duplicados
+                        # Se são idênticos e estamos no modo "manter primeiro"
+                        # Move o arquivo de origem para pasta de duplicados
                         novo_caminho = mover_para_duplicados(arquivo_origem, pasta_duplicados)
                         log.write(f"Arquivo duplicado movido: {arquivo_origem} -> {novo_caminho}\n")
                         stats["arquivos_duplicados"] += 1
@@ -86,6 +99,10 @@ def mesclar_hds(hd_destino, hd_origem):
                     shutil.move(arquivo_origem, arquivo_destino)
                     log.write(f"Arquivo movido: {arquivo_origem} -> {arquivo_destino}\n")
                     stats["arquivos_movidos"] += 1
+                
+                processed_files += 1
+                if progress_callback:
+                    progress_callback(processed_files, total_files)
     
     # Remover pastas vazias do HD de origem
     for pasta_atual, subpastas, arquivos in os.walk(hd_origem, topdown=False):
@@ -115,10 +132,17 @@ def main():
         print("Erro: Os caminhos de origem e destino não podem ser iguais!")
         return
     
+    print("\nComo deseja tratar arquivos duplicados?")
+    print("1. Manter o primeiro arquivo (mover duplicatas para pasta 'Arquivos Duplicados')")
+    print("2. Modo padrão (comportamento original)")
+    
+    opcao = input("Escolha uma opção (1 ou 2): ").strip()
+    manter_primeiro = opcao == "1"
+    
     confirmacao = input(f"\nATENÇÃO: Todos os arquivos de '{hd_origem}' serão movidos para '{hd_destino}'.\nDeseja continuar? (s/n): ").lower()
     
     if confirmacao == 's':
-        if mesclar_hds(hd_destino, hd_origem):
+        if mesclar_hds(hd_destino, hd_origem, manter_primeiro):
             print("\nProcesso de mesclagem concluído com sucesso!")
         else:
             print("\nErro durante o processo de mesclagem!")
@@ -126,4 +150,4 @@ def main():
         print("\nOperação cancelada pelo usuário.")
 
 if __name__ == "__main__":
-    main() 
+    main()

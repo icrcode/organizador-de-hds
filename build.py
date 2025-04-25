@@ -7,7 +7,7 @@ from PyQt6 import QtCore
 qt_path = os.path.dirname(QtCore.__file__)
 
 PyInstaller.__main__.run([
-    'organizador_hd_gui.py',
+    'organizador_hd_gui_updated_v2.py',
     '--onefile',
     '--windowed',
     '--name=Organizador_de_HD',
@@ -19,4 +19,4 @@ PyInstaller.__main__.run([
     '--hidden-import=PyQt6.QtWidgets',
     '--collect-all=PyQt6',
     '--clean'
-]) 
+])

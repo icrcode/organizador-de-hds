@@ -8,7 +8,7 @@ from PyQt6.QtWidgets import (QApplication, QMainWindow, QPushButton, QVBoxLayout
                            QHBoxLayout, QWidget, QLabel, QFileDialog, QTextEdit,
                            QMessageBox, QProgressBar, QDialog, QRadioButton, 
                            QButtonGroup, QTabWidget, QListWidget, QFrame,
-                           QSplitter, QScrollArea)
+                           QSplitter, QScrollArea, QCheckBox, QGroupBox)
 from PyQt6.QtCore import Qt, QThread, pyqtSignal, QSize, QPropertyAnimation, QEasingCurve
 from PyQt6.QtGui import QFont, QIcon, QPalette, QColor, QPixmap
 from mesclar_hds import mesclar_hds
@@ -88,24 +88,24 @@ QLabel {
     font-size: 12px;
 }
 
-QRadioButton {
+QRadioButton, QCheckBox {
     color: #ffffff;
     spacing: 8px;
     padding: 2px;
 }
 
-QRadioButton::indicator {
+QRadioButton::indicator, QCheckBox::indicator {
     width: 18px;
     height: 18px;
 }
 
-QRadioButton::indicator:unchecked {
+QRadioButton::indicator:unchecked, QCheckBox::indicator:unchecked {
     background-color: #1e1e1e;
     border: 2px solid #3d3d3d;
     border-radius: 9px;
 }
 
-QRadioButton::indicator:checked {
+QRadioButton::indicator:checked, QCheckBox::indicator:checked {
     background-color: #0d47a1;
     border: 2px solid #3d3d3d;
     border-radius: 9px;
@@ -160,6 +160,21 @@ QFrame#card {
     margin: 5px;
 }
 
+QGroupBox {
+    color: #ffffff;
+    border: 1px solid #3d3d3d;
+    border-radius: 5px;
+    margin-top: 1.5ex;
+    padding-top: 1.5ex;
+    font-weight: bold;
+}
+
+QGroupBox::title {
+    subcontrol-origin: margin;
+    subcontrol-position: top center;
+    padding: 0 5px;
+}
+
 QWidget {
     font-family: 'Segoe UI', Arial, sans-serif;
 }
@@ -178,13 +193,20 @@ class OrganizadorThread(QThread):
     finished_signal = pyqtSignal()
     question_signal = pyqtSignal(str, list)
     duplicates_signal = pyqtSignal(dict)
+    progress_update = pyqtSignal(int, int)  # valor atual, valor máximo
     
-    def __init__(self, hd_path):
+    def __init__(self, hd_path, batch_mode=False, duplicate_action=0):
         super().__init__()
         self.hd_path = hd_path
         self.folders_by_name = defaultdict(list)
         self.identical_groups = []
         self.user_response = None
+        self.batch_mode = batch_mode
+        self.duplicate_action = duplicate_action
+        # 0: Perguntar para cada arquivo
+        # 1: Manter todos os arquivos
+        # 2: Manter apenas o primeiro arquivo
+        # 3: Mover todos os duplicados para pasta específica
         
     def run(self):
         self.analyze_folders()
@@ -195,10 +217,15 @@ class OrganizadorThread(QThread):
     
     def analyze_folders(self):
         self.progress_signal.emit("Analisando estrutura de pastas...")
+        total_dirs = sum([len(dirs) for _, dirs, _ in os.walk(self.hd_path)])
+        processed_dirs = 0
+        
         for root, dirs, files in os.walk(self.hd_path):
             for dir_name in dirs:
                 full_path = os.path.join(root, dir_name)
                 self.folders_by_name[dir_name.lower()].append(full_path)
+                processed_dirs += 1
+                self.progress_update.emit(processed_dirs, total_dirs)
                 
     def identify_duplicates(self):
         self.progress_signal.emit("Identificando pastas duplicadas...")
@@ -209,6 +236,9 @@ class OrganizadorThread(QThread):
         
     def compare_folders(self):
         self.progress_signal.emit("Comparando conteúdo de pastas...")
+        total_comparisons = sum([len(paths) * (len(paths) - 1) // 2 for paths in self.duplicate_folders.values()])
+        processed_comparisons = 0
+        
         for name, paths in self.duplicate_folders.items():
             compared = set()
             for i in range(len(paths)):
@@ -219,6 +249,8 @@ class OrganizadorThread(QThread):
                         if not comparison.left_only and not comparison.right_only and not comparison.diff_files:
                             self.identical_groups.append((path1, path2))
                         compared.add((path1, path2))
+                        processed_comparisons += 1
+                        self.progress_update.emit(processed_comparisons, total_comparisons)
 
     def find_duplicate_files(self):
         """Encontra todos os arquivos duplicados em todas as pastas"""
@@ -228,6 +260,9 @@ class OrganizadorThread(QThread):
         arquivos_por_tamanho = defaultdict(list)
         
         # Primeiro, agrupa arquivos por tamanho
+        total_files = sum([len(files) for _, _, files in os.walk(self.hd_path)])
+        processed_files = 0
+        
         for raiz, _, arquivos in os.walk(self.hd_path):
             for arquivo in arquivos:
                 caminho_completo = os.path.join(raiz, arquivo)
@@ -236,6 +271,8 @@ class OrganizadorThread(QThread):
                     arquivos_por_tamanho[tamanho].append(caminho_completo)
                 except (OSError, IOError):
                     continue
+                processed_files += 1
+                self.progress_update.emit(processed_files, total_files)
         
         # Para arquivos com mesmo tamanho, calcula o hash
         arquivos_por_hash = defaultdict(list)
@@ -252,11 +289,40 @@ class OrganizadorThread(QThread):
                         arquivos_por_hash[hash_arquivo].append(arquivo)
                     except (OSError, IOError):
                         continue
+                self.progress_update.emit(grupos_processados, total_grupos)
         
         # Emite sinal apenas com grupos que têm duplicados
         duplicados = {hash_: arquivos for hash_, arquivos in arquivos_por_hash.items() 
                      if len(arquivos) > 1}
-        if duplicados:
+        
+        # Se estiver em modo de lote, processa automaticamente os duplicados
+        if self.batch_mode and duplicados:
+            pasta_duplicados = os.path.join(self.hd_path, "Arquivos Duplicados")
+            os.makedirs(pasta_duplicados, exist_ok=True)
+            
+            if self.duplicate_action == 2:  # Manter apenas o primeiro arquivo
+                for hash_arquivo, arquivos in duplicados.items():
+                    for arquivo in arquivos[1:]:
+                        novo_nome = os.path.join(pasta_duplicados, os.path.basename(arquivo))
+                        contador = 1
+                        while os.path.exists(novo_nome):
+                            base, ext = os.path.splitext(os.path.basename(arquivo))
+                            novo_nome = os.path.join(pasta_duplicados, f"{base}_{contador}{ext}")
+                            contador += 1
+                        shutil.move(arquivo, novo_nome)
+                        self.progress_signal.emit(f"Arquivo duplicado movido: {arquivo} -> {novo_nome}")
+            elif self.duplicate_action == 3:  # Mover todos os duplicados para pasta específica
+                for hash_arquivo, arquivos in duplicados.items():
+                    for arquivo in arquivos:
+                        novo_nome = os.path.join(pasta_duplicados, os.path.basename(arquivo))
+                        contador = 1
+                        while os.path.exists(novo_nome):
+                            base, ext = os.path.splitext(os.path.basename(arquivo))
+                            novo_nome = os.path.join(pasta_duplicados, f"{base}_{contador}{ext}")
+                            contador += 1
+                        shutil.copy2(arquivo, novo_nome)  # Copia para manter o original
+                        self.progress_signal.emit(f"Arquivo duplicado copiado: {arquivo} -> {novo_nome}")
+        elif duplicados:
             self.duplicates_signal.emit(duplicados)
 
 class AnimatedButton(QPushButton):
@@ -350,6 +416,85 @@ class DuplicateFilesDialog(StyledDialog):
         
         self.setLayout(layout)
 
+class BatchSettingsDialog(StyledDialog):
+    def __init__(self, parent=None):
+        super().__init__("Configurações de Processamento em Lote", parent)
+        
+        layout = QVBoxLayout()
+        
+        # Título
+        title_label = QLabel("Configurações de Processamento em Lote")
+        title_label.setStyleSheet("font-size: 18px; font-weight: bold; margin-bottom: 10px;")
+        layout.addWidget(title_label)
+        
+        # Container principal
+        main_container = QFrame()
+        main_container.setObjectName("card")
+        main_layout = QVBoxLayout(main_container)
+        
+        # Opções para arquivos duplicados
+        duplicate_group = QGroupBox("Tratamento de Arquivos Duplicados")
+        duplicate_layout = QVBoxLayout(duplicate_group)
+        
+        self.duplicate_radio_group = QButtonGroup()
+        duplicate_options = [
+            "Perguntar para cada arquivo",
+            "Manter todos os arquivos",
+            "Manter apenas o primeiro arquivo (mover outros para pasta de duplicados)",
+            "Mover todos os duplicados para pasta específica (mantém originais)"
+        ]
+        
+        for i, text in enumerate(duplicate_options):
+            radio = QRadioButton(text)
+            radio.setStyleSheet("font-size: 14px;")
+            self.duplicate_radio_group.addButton(radio, i)
+            duplicate_layout.addWidget(radio)
+        
+        # Seleciona a opção padrão
+        self.duplicate_radio_group.button(2).setChecked(True)
+        
+        main_layout.addWidget(duplicate_group)
+        
+        # Opções para pastas duplicadas
+        folder_group = QGroupBox("Tratamento de Pastas Duplicadas")
+        folder_layout = QVBoxLayout(folder_group)
+        
+        self.folder_radio_group = QButtonGroup()
+        folder_options = [
+            "Perguntar para cada pasta",
+            "Manter todas as pastas",
+            "Manter apenas a primeira pasta",
+            "Mesclar conteúdo das pastas"
+        ]
+        
+        for i, text in enumerate(folder_options):
+            radio = QRadioButton(text)
+            radio.setStyleSheet("font-size: 14px;")
+            self.folder_radio_group.addButton(radio, i)
+            folder_layout.addWidget(radio)
+        
+        # Seleciona a opção padrão
+        self.folder_radio_group.button(3).setChecked(True)
+        
+        main_layout.addWidget(folder_group)
+        layout.addWidget(main_container)
+        
+        # Botões
+        buttons_layout = QHBoxLayout()
+        
+        cancel_btn = AnimatedButton("Cancelar")
+        cancel_btn.clicked.connect(self.reject)
+        
+        confirm_btn = AnimatedButton("Confirmar")
+        confirm_btn.clicked.connect(self.accept)
+        
+        buttons_layout.addWidget(cancel_btn)
+        buttons_layout.addWidget(confirm_btn)
+        
+        layout.addLayout(buttons_layout)
+        
+        self.setLayout(layout)
+
 class FolderActionDialog(StyledDialog):
     def __init__(self, folder1, folder2):
         super().__init__("Ação para Pastas Duplicadas")
@@ -406,15 +551,17 @@ class FolderActionDialog(StyledDialog):
 class MesclarThread(QThread):
     progress_signal = pyqtSignal(str)
     finished_signal = pyqtSignal()
+    progress_update = pyqtSignal(int, int)  # valor atual, valor máximo
     
-    def __init__(self, hd_destino, hd_origem):
+    def __init__(self, hd_destino, hd_origem, manter_primeiro=True):
         super().__init__()
         self.hd_destino = hd_destino
         self.hd_origem = hd_origem
+        self.manter_primeiro = manter_primeiro
         
     def run(self):
         try:
-            if mesclar_hds(self.hd_destino, self.hd_origem):
+            if mesclar_hds(self.hd_destino, self.hd_origem, self.manter_primeiro, self.update_progress):
                 self.progress_signal.emit("Mesclagem concluída com sucesso!")
             else:
                 self.progress_signal.emit("Erro durante a mesclagem!")
@@ -422,6 +569,9 @@ class MesclarThread(QThread):
             self.progress_signal.emit(f"Erro: {str(e)}")
         finally:
             self.finished_signal.emit()
+            
+    def update_progress(self, value, maximum):
+        self.progress_update.emit(value, maximum)
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -443,6 +593,12 @@ class MainWindow(QMainWindow):
         self.tab_mesclagem = QWidget()
         self.setup_tab_mesclagem()
         self.tabs.addTab(self.tab_mesclagem, "Mesclar HDs")
+        
+        # Configurações padrão
+        self.batch_mode = False
+        self.duplicate_action = 0
+        self.folder_action = 0
+        self.manter_primeiro = True  # Opção padrão para mesclagem
         
     def setup_tab_organizacao(self):
         layout = QVBoxLayout()
@@ -470,6 +626,29 @@ class MainWindow(QMainWindow):
         hd_layout.addWidget(self.path_label)
         hd_layout.addWidget(select_btn)
         main_layout.addWidget(hd_frame)
+        
+        # Opções de processamento
+        options_frame = QFrame()
+        options_frame.setObjectName("card")
+        options_layout = QVBoxLayout(options_frame)
+        
+        options_title = QLabel("Opções de Processamento")
+        options_title.setStyleSheet("font-size: 16px; font-weight: bold;")
+        options_layout.addWidget(options_title)
+        
+        # Checkbox para modo de lote
+        self.batch_checkbox = QCheckBox("Processar todos os arquivos de uma vez (modo lote)")
+        self.batch_checkbox.setStyleSheet("font-size: 14px;")
+        self.batch_checkbox.toggled.connect(self.toggle_batch_mode)
+        options_layout.addWidget(self.batch_checkbox)
+        
+        # Botão de configurações de lote
+        self.batch_settings_btn = AnimatedButton("Configurar Processamento em Lote")
+        self.batch_settings_btn.clicked.connect(self.show_batch_settings)
+        self.batch_settings_btn.setEnabled(False)
+        options_layout.addWidget(self.batch_settings_btn)
+        
+        main_layout.addWidget(options_frame)
         
         # Área de log
         log_frame = QFrame()
@@ -546,6 +725,24 @@ class MainWindow(QMainWindow):
         
         main_layout.addWidget(hds_frame)
         
+        # Opções de mesclagem
+        options_frame = QFrame()
+        options_frame.setObjectName("card")
+        options_layout = QVBoxLayout(options_frame)
+        
+        options_title = QLabel("Opções de Mesclagem")
+        options_title.setStyleSheet("font-size: 16px; font-weight: bold;")
+        options_layout.addWidget(options_title)
+        
+        # Checkbox para manter primeiro arquivo
+        self.manter_primeiro_checkbox = QCheckBox("Manter primeiro arquivo e mover duplicatas para pasta 'Arquivos Duplicados'")
+        self.manter_primeiro_checkbox.setStyleSheet("font-size: 14px;")
+        self.manter_primeiro_checkbox.setChecked(True)
+        self.manter_primeiro_checkbox.toggled.connect(self.toggle_manter_primeiro)
+        options_layout.addWidget(self.manter_primeiro_checkbox)
+        
+        main_layout.addWidget(options_frame)
+        
         # Área de log
         log_frame = QFrame()
         log_frame.setObjectName("card")
@@ -582,6 +779,20 @@ class MainWindow(QMainWindow):
         layout.addWidget(main_container)
         self.tab_mesclagem.setLayout(layout)
     
+    def toggle_batch_mode(self, checked):
+        self.batch_mode = checked
+        self.batch_settings_btn.setEnabled(checked)
+    
+    def toggle_manter_primeiro(self, checked):
+        self.manter_primeiro = checked
+        
+    def show_batch_settings(self):
+        dialog = BatchSettingsDialog(self)
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            self.duplicate_action = dialog.duplicate_radio_group.checkedId()
+            self.folder_action = dialog.folder_radio_group.checkedId()
+            self.log_message(f"Configurações de lote atualizadas: Duplicados={self.duplicate_action}, Pastas={self.folder_action}")
+    
     def select_hd(self):
         folder = QFileDialog.getExistingDirectory(self, "Selecionar HD")
         if folder:
@@ -613,21 +824,28 @@ class MainWindow(QMainWindow):
                 self.start_mesclar_btn.setEnabled(False)
     
     def start_mesclagem(self):
+        modo_texto = "Manter primeiro arquivo e mover duplicatas para pasta 'Arquivos Duplicados'" if self.manter_primeiro else "Modo padrão"
+        
         reply = QMessageBox.question(
             self, 'Confirmação',
-            f'Tem certeza que deseja mesclar os HDs?\n\nDestino: {self.hd_destino}\nOrigem: {self.hd_origem}',
+            f'Tem certeza que deseja mesclar os HDs?\n\nDestino: {self.hd_destino}\nOrigem: {self.hd_origem}\nModo: {modo_texto}',
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
         )
         
         if reply == QMessageBox.StandardButton.Yes:
-            self.worker_mesclar = MesclarThread(self.hd_destino, self.hd_origem)
+            self.worker_mesclar = MesclarThread(self.hd_destino, self.hd_origem, self.manter_primeiro)
             self.worker_mesclar.progress_signal.connect(self.log_mesclagem_message)
             self.worker_mesclar.finished_signal.connect(self.mesclagem_finished)
+            self.worker_mesclar.progress_update.connect(self.update_mesclagem_progress)
             self.worker_mesclar.start()
             self.start_mesclar_btn.setEnabled(False)
     
     def log_mesclagem_message(self, message):
         self.log_mesclagem.append(message)
+    
+    def update_mesclagem_progress(self, value, maximum):
+        self.progress_mesclagem.setMaximum(maximum)
+        self.progress_mesclagem.setValue(value)
     
     def mesclagem_finished(self):
         QMessageBox.information(self, "Concluído", 
@@ -635,13 +853,22 @@ class MainWindow(QMainWindow):
         self.start_mesclar_btn.setEnabled(True)
         
     def start_organization(self):
-        self.worker = OrganizadorThread(self.hd_path)
+        self.worker = OrganizadorThread(
+            self.hd_path, 
+            batch_mode=self.batch_mode,
+            duplicate_action=self.duplicate_action
+        )
         self.worker.progress_signal.connect(self.log_message)
         self.worker.finished_signal.connect(self.organization_finished)
         self.worker.question_signal.connect(self.show_folder_dialog)
         self.worker.duplicates_signal.connect(self.handle_duplicate_files)
+        self.worker.progress_update.connect(self.update_progress)
         self.worker.start()
         self.start_btn.setEnabled(False)
+    
+    def update_progress(self, value, maximum):
+        self.progress_bar.setMaximum(maximum)
+        self.progress_bar.setValue(value)
         
     def organization_finished(self):
         QMessageBox.information(self, "Concluído", 
@@ -679,6 +906,12 @@ class MainWindow(QMainWindow):
             self.log_message(f"Erro ao processar pastas: {str(e)}")
         
     def show_folder_dialog(self, message, folders):
+        # Se estiver em modo de lote, usa a ação configurada
+        if self.batch_mode and self.folder_action > 0:
+            self.process_folder_action(folders[0], folders[1], self.folder_action - 1)
+            return
+            
+        # Caso contrário, mostra o diálogo
         dialog = FolderActionDialog(folders[0], folders[1])
         result = dialog.exec()
         if result == QDialog.DialogCode.Accepted:
@@ -726,4 +959,4 @@ if __name__ == '__main__':
     app.setStyleSheet(STYLE)
     window = MainWindow()
     window.show()
-    sys.exit(app.exec()) 
+    sys.exit(app.exec())

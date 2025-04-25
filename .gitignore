@@ -1,2 +1,7 @@
 # Hide virtual environment folder
 .venv
+build
+dist
+pycaches
+__pycache__
+Organizador_de_HD.spec

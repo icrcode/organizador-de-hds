@@ -7,7 +7,7 @@ from PyQt6 import QtCore
 qt_path = os.path.dirname(QtCore.__file__)
 
 PyInstaller.__main__.run([
-    'organizador_hd_gui_updated_v2.py',
+    'organizador_hd_gui.py',
     '--onefile',
     '--windowed',
     '--name=Organizador_de_HD',

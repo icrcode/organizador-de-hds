@@ -3,26 +3,120 @@ import shutil
 import filecmp
 from collections import defaultdict
 
-def mover_para_duplicados(arquivo_origem, pasta_duplicados):
-    """Move um arquivo para a pasta de duplicados com um nome único."""
-    os.makedirs(pasta_duplicados, exist_ok=True)
-    nome_arquivo = os.path.basename(arquivo_origem)
-    destino = os.path.join(pasta_duplicados, nome_arquivo)
+def obter_pasta_tipo_arquivo(extensao):
+    """
+    Retorna o nome da pasta para um determinado tipo de arquivo baseado na extensão.
+    """
+    extensao = extensao.lower().lstrip('.')
     
-    # Se já existe um arquivo com mesmo nome na pasta de duplicados
+    # Mapeamento de extensões para tipos de arquivo
+    tipos = {
+        # Documentos
+        'pdf': 'PDFs',
+        'doc': 'Documentos',
+        'docx': 'Documentos',
+        'txt': 'Documentos',
+        'rtf': 'Documentos',
+        'odt': 'Documentos',
+        'xls': 'Planilhas',
+        'xlsx': 'Planilhas',
+        'csv': 'Planilhas',
+        'ods': 'Planilhas',
+        'ppt': 'Apresentacoes',
+        'pptx': 'Apresentacoes',
+        'odp': 'Apresentacoes',
+        
+        # Imagens
+        'jpg': 'Imagens',
+        'jpeg': 'Imagens',
+        'png': 'Imagens',
+        'gif': 'Imagens',
+        'bmp': 'Imagens',
+        'tif': 'Imagens',
+        'tiff': 'Imagens',
+        'svg': 'Imagens',
+        'webp': 'Imagens',
+        
+        # Áudio
+        'mp3': 'Audio',
+        'wav': 'Audio',
+        'ogg': 'Audio',
+        'flac': 'Audio',
+        'aac': 'Audio',
+        'wma': 'Audio',
+        
+        # Vídeo
+        'mp4': 'Videos',
+        'avi': 'Videos',
+        'mkv': 'Videos',
+        'mov': 'Videos',
+        'wmv': 'Videos',
+        'flv': 'Videos',
+        'webm': 'Videos',
+        
+        # Compactados
+        'zip': 'Compactados',
+        'rar': 'Compactados',
+        '7z': 'Compactados',
+        'tar': 'Compactados',
+        'gz': 'Compactados',
+        
+        # Executáveis
+        'exe': 'Executaveis',
+        'msi': 'Executaveis',
+        'bat': 'Executaveis',
+        'sh': 'Executaveis',
+        
+        # Código
+        'py': 'Codigo',
+        'java': 'Codigo',
+        'js': 'Codigo',
+        'html': 'Codigo',
+        'css': 'Codigo',
+        'c': 'Codigo',
+        'cpp': 'Codigo',
+        'h': 'Codigo',
+        'php': 'Codigo',
+    }
+    
+    # Retorna o tipo correspondente ou "Outros" se não encontrado
+    return tipos.get(extensao, 'Outros')
+
+def mover_para_duplicados(arquivo_origem, pasta_duplicados):
+    """
+    Move um arquivo para a pasta de duplicados, organizando por tipo de arquivo.
+    """
+    os.makedirs(pasta_duplicados, exist_ok=True)
+    
+    # Obter nome e extensão do arquivo
+    nome_arquivo = os.path.basename(arquivo_origem)
+    _, extensao = os.path.splitext(nome_arquivo)
+    
+    # Determinar a pasta de destino baseada no tipo de arquivo
+    tipo_pasta = obter_pasta_tipo_arquivo(extensao)
+    pasta_tipo = os.path.join(pasta_duplicados, tipo_pasta)
+    
+    # Criar a pasta do tipo se não existir
+    os.makedirs(pasta_tipo, exist_ok=True)
+    
+    # Definir o caminho de destino
+    destino = os.path.join(pasta_tipo, nome_arquivo)
+    
+    # Se já existe um arquivo com mesmo nome na pasta de destino
     contador = 1
     while os.path.exists(destino):
-        nome_base, extensao = os.path.splitext(nome_arquivo)
-        destino = os.path.join(pasta_duplicados, f"{nome_base}_{contador}{extensao}")
+        nome_base, ext = os.path.splitext(nome_arquivo)
+        destino = os.path.join(pasta_tipo, f"{nome_base}_{contador}{ext}")
         contador += 1
     
+    # Mover o arquivo
     shutil.move(arquivo_origem, destino)
     return destino
 
 def mesclar_hds(hd_destino, hd_origem, manter_primeiro=True, progress_callback=None):
     """
     Mescla o conteúdo de dois HDs, movendo todos os arquivos do HD de origem para o HD de destino.
-    Arquivos duplicados são movidos para uma pasta especial.
+    Arquivos duplicados são movidos para uma pasta especial, organizados por tipo.
     
     Args:
         hd_destino: Caminho do HD de destino

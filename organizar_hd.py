@@ -4,6 +4,85 @@ import filecmp
 import hashlib
 from collections import defaultdict
 
+def obter_pasta_tipo_arquivo(extensao):
+    """
+    Retorna o nome da pasta para um determinado tipo de arquivo baseado na extensão.
+    """
+    extensao = extensao.lower().lstrip('.')
+    
+    # Mapeamento de extensões para tipos de arquivo
+    tipos = {
+        # Documentos
+        'pdf': 'PDFs',
+        'doc': 'Documentos',
+        'docx': 'Documentos',
+        'txt': 'Documentos',
+        'rtf': 'Documentos',
+        'odt': 'Documentos',
+        'xls': 'Planilhas',
+        'xlsx': 'Planilhas',
+        'csv': 'Planilhas',
+        'ods': 'Planilhas',
+        'ppt': 'Apresentacoes',
+        'pptx': 'Apresentacoes',
+        'odp': 'Apresentacoes',
+        
+        # Imagens
+        'jpg': 'Imagens',
+        'jpeg': 'Imagens',
+        'png': 'Imagens',
+        'gif': 'Imagens',
+        'bmp': 'Imagens',
+        'tif': 'Imagens',
+        'tiff': 'Imagens',
+        'svg': 'Imagens',
+        'webp': 'Imagens',
+        
+        # Áudio
+        'mp3': 'Audio',
+        'wav': 'Audio',
+        'ogg': 'Audio',
+        'flac': 'Audio',
+        'aac': 'Audio',
+        'wma': 'Audio',
+        
+        # Vídeo
+        'mp4': 'Videos',
+        'avi': 'Videos',
+        'mkv': 'Videos',
+        'mov': 'Videos',
+        'wmv': 'Videos',
+        'flv': 'Videos',
+        'webm': 'Videos',
+        
+        # Compactados
+        'zip': 'Compactados',
+        'rar': 'Compactados',
+        '7z': 'Compactados',
+        'tar': 'Compactados',
+        'gz': 'Compactados',
+        
+        # Executáveis
+        'exe': 'Executaveis',
+        'msi': 'Executaveis',
+        'bat': 'Executaveis',
+        'sh': 'Executaveis',
+        
+        # Código
+        'py': 'Codigo',
+        'java': 'Codigo',
+        'js': 'Codigo',
+        'html': 'Codigo',
+        'css': 'Codigo',
+        'c': 'Codigo',
+        'cpp': 'Codigo',
+        'h': 'Codigo',
+        'php': 'Codigo',
+    }
+    
+    # Retorna o tipo correspondente ou "Outros" se não encontrado
+    return tipos.get(extensao, 'Outros')
+
 def calcular_hash_arquivo(caminho_arquivo, block_size=65536):
     """Calcula o hash SHA-256 de um arquivo"""
     sha256 = hashlib.sha256()
@@ -55,22 +134,34 @@ def encontrar_arquivos_duplicados(pasta, callback=None):
     return {hash_: arquivos for hash_, arquivos in arquivos_por_hash.items() 
             if len(arquivos) > 1}
 
-def move_duplicate_file(src_path, duplicates_folder):
-    """Move um arquivo duplicado para a pasta de arquivos duplicados."""
-    os.makedirs(duplicates_folder, exist_ok=True)
-    filename = os.path.basename(src_path)
-    dst_path = os.path.join(duplicates_folder, filename)
+def mover_para_duplicados(arquivo, pasta_duplicados):
+    """
+    Move um arquivo para a pasta de duplicados, organizando por tipo de arquivo.
+    """
+    # Obter nome e extensão do arquivo
+    nome_arquivo = os.path.basename(arquivo)
+    _, extensao = os.path.splitext(nome_arquivo)
     
-    # Se já existir um arquivo com o mesmo nome na pasta de duplicados,
-    # adiciona um número ao final
-    counter = 1
-    while os.path.exists(dst_path):
-        base_name, ext = os.path.splitext(filename)
-        dst_path = os.path.join(duplicates_folder, f"{base_name}_{counter}{ext}")
-        counter += 1
+    # Determinar a pasta de destino baseada no tipo de arquivo
+    tipo_pasta = obter_pasta_tipo_arquivo(extensao)
+    pasta_tipo = os.path.join(pasta_duplicados, tipo_pasta)
     
-    shutil.move(src_path, dst_path)
-    return dst_path
+    # Criar a pasta do tipo se não existir
+    os.makedirs(pasta_tipo, exist_ok=True)
+    
+    # Definir o caminho de destino
+    destino = os.path.join(pasta_tipo, nome_arquivo)
+    
+    # Se já existe um arquivo com mesmo nome na pasta de destino
+    contador = 1
+    while os.path.exists(destino):
+        nome_base, ext = os.path.splitext(nome_arquivo)
+        destino = os.path.join(pasta_tipo, f"{nome_base}_{contador}{ext}")
+        contador += 1
+    
+    # Mover o arquivo
+    shutil.move(arquivo, destino)
+    return destino
 
 def processar_arquivos_duplicados(duplicados, pasta_duplicados, modo_acao=0, arquivo_manter=0, log_callback=None):
     """
@@ -92,42 +183,46 @@ def processar_arquivos_duplicados(duplicados, pasta_duplicados, modo_acao=0, arq
         elif modo_acao == 1:  # Manter apenas o primeiro
             primeiro = arquivos[0]
             for arquivo in arquivos[1:]:
-                novo_nome = os.path.join(pasta_duplicados, os.path.basename(arquivo))
-                contador = 1
-                while os.path.exists(novo_nome):
-                    base, ext = os.path.splitext(os.path.basename(arquivo))
-                    novo_nome = os.path.join(pasta_duplicados, f"{base}_{contador}{ext}")
-                    contador += 1
-                shutil.move(arquivo, novo_nome)
+                novo_caminho = mover_para_duplicados(arquivo, pasta_duplicados)
                 if log_callback:
-                    log_callback(f"Arquivo duplicado movido: {arquivo} -> {novo_nome}")
+                    log_callback(f"Arquivo duplicado movido: {arquivo} -> {novo_caminho}")
                     
         elif modo_acao == 2:  # Escolha manual
             if 0 <= arquivo_manter < len(arquivos):
                 arquivo_manter_path = arquivos[arquivo_manter]
                 for i, arquivo in enumerate(arquivos):
                     if i != arquivo_manter:
-                        novo_nome = os.path.join(pasta_duplicados, os.path.basename(arquivo))
-                        contador = 1
-                        while os.path.exists(novo_nome):
-                            base, ext = os.path.splitext(os.path.basename(arquivo))
-                            novo_nome = os.path.join(pasta_duplicados, f"{base}_{contador}{ext}")
-                            contador += 1
-                        shutil.move(arquivo, novo_nome)
+                        novo_caminho = mover_para_duplicados(arquivo, pasta_duplicados)
                         if log_callback:
-                            log_callback(f"Arquivo duplicado movido: {arquivo} -> {novo_nome}")
+                            log_callback(f"Arquivo duplicado movido: {arquivo} -> {novo_caminho}")
                             
         elif modo_acao == 3:  # Mover todos para pasta específica (mantém originais)
             for arquivo in arquivos:
-                novo_nome = os.path.join(pasta_duplicados, os.path.basename(arquivo))
+                # Obter nome e extensão do arquivo
+                nome_arquivo = os.path.basename(arquivo)
+                _, extensao = os.path.splitext(nome_arquivo)
+                
+                # Determinar a pasta de destino baseada no tipo de arquivo
+                tipo_pasta = obter_pasta_tipo_arquivo(extensao)
+                pasta_tipo = os.path.join(pasta_duplicados, tipo_pasta)
+                
+                # Criar a pasta do tipo se não existir
+                os.makedirs(pasta_tipo, exist_ok=True)
+                
+                # Definir o caminho de destino
+                destino = os.path.join(pasta_tipo, nome_arquivo)
+                
+                # Se já existe um arquivo com mesmo nome na pasta de destino
                 contador = 1
-                while os.path.exists(novo_nome):
-                    base, ext = os.path.splitext(os.path.basename(arquivo))
-                    novo_nome = os.path.join(pasta_duplicados, f"{base}_{contador}{ext}")
+                while os.path.exists(destino):
+                    nome_base, ext = os.path.splitext(nome_arquivo)
+                    destino = os.path.join(pasta_tipo, f"{nome_base}_{contador}{ext}")
                     contador += 1
-                shutil.copy2(arquivo, novo_nome)  # Copia para manter o original
+                
+                # Copiar o arquivo (mantém o original)
+                shutil.copy2(arquivo, destino)
                 if log_callback:
-                    log_callback(f"Arquivo duplicado copiado: {arquivo} -> {novo_nome}")
+                    log_callback(f"Arquivo duplicado copiado: {arquivo} -> {destino}")
 
 def processar_pastas_identicas(grupo_pastas, modo_acao=0, log_callback=None):
     """
@@ -278,15 +373,9 @@ def main():
                         # Manter o primeiro arquivo e mover os outros para a pasta de duplicados
                         primeiro = arquivos[0]
                         for arquivo in arquivos[1:]:
-                            novo_nome = os.path.join(pasta_duplicados, os.path.basename(arquivo))
-                            contador = 1
-                            while os.path.exists(novo_nome):
-                                base, ext = os.path.splitext(os.path.basename(arquivo))
-                                novo_nome = os.path.join(pasta_duplicados, f"{base}_{contador}{ext}")
-                                contador += 1
-                            shutil.move(arquivo, novo_nome)
-                            log.write(f"Arquivo duplicado movido: {arquivo} -> {novo_nome}\n")
-                            print(f"Movido: {arquivo} -> {novo_nome}")
+                            novo_caminho = mover_para_duplicados(arquivo, pasta_duplicados)
+                            log.write(f"Arquivo duplicado movido: {arquivo} -> {novo_caminho}\n")
+                            print(f"Movido: {arquivo} -> {novo_caminho}")
                     
                     elif action == '3':
                         manter = int(input("Digite o número do arquivo que deseja manter: ").strip()) - 1
@@ -294,15 +383,9 @@ def main():
                             arquivo_manter = arquivos[manter]
                             for i, arquivo in enumerate(arquivos):
                                 if i != manter:
-                                    novo_nome = os.path.join(pasta_duplicados, os.path.basename(arquivo))
-                                    contador = 1
-                                    while os.path.exists(novo_nome):
-                                        base, ext = os.path.splitext(os.path.basename(arquivo))
-                                        novo_nome = os.path.join(pasta_duplicados, f"{base}_{contador}{ext}")
-                                        contador += 1
-                                    shutil.move(arquivo, novo_nome)
-                                    log.write(f"Arquivo duplicado movido: {arquivo} -> {novo_nome}\n")
-                                    print(f"Movido: {arquivo} -> {novo_nome}")
+                                    novo_caminho = mover_para_duplicados(arquivo, pasta_duplicados)
+                                    log.write(f"Arquivo duplicado movido: {arquivo} -> {novo_caminho}\n")
+                                    print(f"Movido: {arquivo} -> {novo_caminho}")
     else:
         print("Nenhum arquivo duplicado encontrado.")
     

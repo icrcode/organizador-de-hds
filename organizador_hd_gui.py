@@ -11,7 +11,7 @@ from PyQt6.QtWidgets import (QApplication, QMainWindow, QPushButton, QVBoxLayout
                            QSplitter, QScrollArea, QCheckBox, QGroupBox)
 from PyQt6.QtCore import Qt, QThread, pyqtSignal, QSize, QPropertyAnimation, QEasingCurve
 from PyQt6.QtGui import QFont, QIcon, QPalette, QColor, QPixmap
-from mesclar_hds import mesclar_hds
+from mesclar_hds import mesclar_hds, obter_pasta_tipo_arquivo
 
 # Definição de estilos
 STYLE = """
@@ -188,6 +188,35 @@ def calcular_hash_arquivo(caminho_arquivo, block_size=65536):
             sha256.update(block)
     return sha256.hexdigest()
 
+def mover_para_duplicados(arquivo, pasta_duplicados):
+    """
+    Move um arquivo para a pasta de duplicados, organizando por tipo de arquivo.
+    """
+    # Obter nome e extensão do arquivo
+    nome_arquivo = os.path.basename(arquivo)
+    _, extensao = os.path.splitext(nome_arquivo)
+    
+    # Determinar a pasta de destino baseada no tipo de arquivo
+    tipo_pasta = obter_pasta_tipo_arquivo(extensao)
+    pasta_tipo = os.path.join(pasta_duplicados, tipo_pasta)
+    
+    # Criar a pasta do tipo se não existir
+    os.makedirs(pasta_tipo, exist_ok=True)
+    
+    # Definir o caminho de destino
+    destino = os.path.join(pasta_tipo, nome_arquivo)
+    
+    # Se já existe um arquivo com mesmo nome na pasta de destino
+    contador = 1
+    while os.path.exists(destino):
+        nome_base, ext = os.path.splitext(nome_arquivo)
+        destino = os.path.join(pasta_tipo, f"{nome_base}_{contador}{ext}")
+        contador += 1
+    
+    # Mover o arquivo
+    shutil.move(arquivo, destino)
+    return destino
+
 class OrganizadorThread(QThread):
     progress_signal = pyqtSignal(str)
     finished_signal = pyqtSignal()
@@ -303,25 +332,35 @@ class OrganizadorThread(QThread):
             if self.duplicate_action == 2:  # Manter apenas o primeiro arquivo
                 for hash_arquivo, arquivos in duplicados.items():
                     for arquivo in arquivos[1:]:
-                        novo_nome = os.path.join(pasta_duplicados, os.path.basename(arquivo))
-                        contador = 1
-                        while os.path.exists(novo_nome):
-                            base, ext = os.path.splitext(os.path.basename(arquivo))
-                            novo_nome = os.path.join(pasta_duplicados, f"{base}_{contador}{ext}")
-                            contador += 1
-                        shutil.move(arquivo, novo_nome)
-                        self.progress_signal.emit(f"Arquivo duplicado movido: {arquivo} -> {novo_nome}")
+                        novo_caminho = mover_para_duplicados(arquivo, pasta_duplicados)
+                        self.progress_signal.emit(f"Arquivo duplicado movido: {arquivo} -> {novo_caminho}")
             elif self.duplicate_action == 3:  # Mover todos os duplicados para pasta específica
                 for hash_arquivo, arquivos in duplicados.items():
                     for arquivo in arquivos:
-                        novo_nome = os.path.join(pasta_duplicados, os.path.basename(arquivo))
+                        # Obter nome e extensão do arquivo
+                        nome_arquivo = os.path.basename(arquivo)
+                        _, extensao = os.path.splitext(nome_arquivo)
+                        
+                        # Determinar a pasta de destino baseada no tipo de arquivo
+                        tipo_pasta = obter_pasta_tipo_arquivo(extensao)
+                        pasta_tipo = os.path.join(pasta_duplicados, tipo_pasta)
+                        
+                        # Criar a pasta do tipo se não existir
+                        os.makedirs(pasta_tipo, exist_ok=True)
+                        
+                        # Definir o caminho de destino
+                        destino = os.path.join(pasta_tipo, nome_arquivo)
+                        
+                        # Se já existe um arquivo com mesmo nome na pasta de destino
                         contador = 1
-                        while os.path.exists(novo_nome):
-                            base, ext = os.path.splitext(os.path.basename(arquivo))
-                            novo_nome = os.path.join(pasta_duplicados, f"{base}_{contador}{ext}")
+                        while os.path.exists(destino):
+                            nome_base, ext = os.path.splitext(nome_arquivo)
+                            destino = os.path.join(pasta_tipo, f"{nome_base}_{contador}{ext}")
                             contador += 1
-                        shutil.copy2(arquivo, novo_nome)  # Copia para manter o original
-                        self.progress_signal.emit(f"Arquivo duplicado copiado: {arquivo} -> {novo_nome}")
+                        
+                        # Copiar o arquivo (mantém o original)
+                        shutil.copy2(arquivo, destino)
+                        self.progress_signal.emit(f"Arquivo duplicado copiado: {arquivo} -> {destino}")
         elif duplicados:
             self.duplicates_signal.emit(duplicados)
 
@@ -409,6 +448,11 @@ class DuplicateFilesDialog(StyledDialog):
         main_layout.addWidget(options_frame)
         layout.addWidget(main_container)
         
+        # Informação sobre organização por tipo
+        info_label = QLabel("Os arquivos duplicados serão organizados em subpastas por tipo (PDFs, Imagens, etc.)")
+        info_label.setStyleSheet("font-size: 14px; color: #aaaaaa; margin-top: 10px;")
+        layout.addWidget(info_label)
+        
         # Botão de confirmação
         confirm_btn = AnimatedButton("Confirmar")
         confirm_btn.clicked.connect(self.accept)
@@ -477,6 +521,12 @@ class BatchSettingsDialog(StyledDialog):
         self.folder_radio_group.button(3).setChecked(True)
         
         main_layout.addWidget(folder_group)
+        
+        # Informação sobre organização por tipo
+        info_label = QLabel("Os arquivos duplicados serão organizados em subpastas por tipo (PDFs, Imagens, etc.)")
+        info_label.setStyleSheet("font-size: 14px; color: #aaaaaa; margin-top: 10px;")
+        main_layout.addWidget(info_label)
+        
         layout.addWidget(main_container)
         
         # Botões
@@ -648,6 +698,11 @@ class MainWindow(QMainWindow):
         self.batch_settings_btn.setEnabled(False)
         options_layout.addWidget(self.batch_settings_btn)
         
+        # Informação sobre organização por tipo
+        info_label = QLabel("Os arquivos duplicados serão organizados em subpastas por tipo (PDFs, Imagens, etc.)")
+        info_label.setStyleSheet("font-size: 14px; color: #aaaaaa; margin-top: 10px;")
+        options_layout.addWidget(info_label)
+        
         main_layout.addWidget(options_frame)
         
         # Área de log
@@ -740,6 +795,11 @@ class MainWindow(QMainWindow):
         self.manter_primeiro_checkbox.setChecked(True)
         self.manter_primeiro_checkbox.toggled.connect(self.toggle_manter_primeiro)
         options_layout.addWidget(self.manter_primeiro_checkbox)
+        
+        # Informação sobre organização por tipo
+        info_label = QLabel("Os arquivos duplicados serão organizados em subpastas por tipo (PDFs, Imagens, etc.)")
+        info_label.setStyleSheet("font-size: 14px; color: #aaaaaa; margin-top: 10px;")
+        options_layout.addWidget(info_label)
         
         main_layout.addWidget(options_frame)
         
@@ -930,14 +990,8 @@ class MainWindow(QMainWindow):
                 if action == 1:  # Manter apenas o primeiro
                     primeiro = arquivos[0]
                     for arquivo in arquivos[1:]:
-                        novo_nome = os.path.join(pasta_duplicados, os.path.basename(arquivo))
-                        contador = 1
-                        while os.path.exists(novo_nome):
-                            base, ext = os.path.splitext(os.path.basename(arquivo))
-                            novo_nome = os.path.join(pasta_duplicados, f"{base}_{contador}{ext}")
-                            contador += 1
-                        shutil.move(arquivo, novo_nome)
-                        self.log_message(f"Arquivo duplicado movido: {arquivo} -> {novo_nome}")
+                        novo_caminho = mover_para_duplicados(arquivo, pasta_duplicados)
+                        self.log_message(f"Arquivo duplicado movido: {arquivo} -> {novo_caminho}")
                 
                 elif action == 2:  # Escolher manualmente
                     selecionado = dialog.list_widget.currentRow()
@@ -945,14 +999,8 @@ class MainWindow(QMainWindow):
                         arquivo_manter = arquivos[selecionado]
                         for i, arquivo in enumerate(arquivos):
                             if i != selecionado:
-                                novo_nome = os.path.join(pasta_duplicados, os.path.basename(arquivo))
-                                contador = 1
-                                while os.path.exists(novo_nome):
-                                    base, ext = os.path.splitext(os.path.basename(arquivo))
-                                    novo_nome = os.path.join(pasta_duplicados, f"{base}_{contador}{ext}")
-                                    contador += 1
-                                shutil.move(arquivo, novo_nome)
-                                self.log_message(f"Arquivo duplicado movido: {arquivo} -> {novo_nome}")
+                                novo_caminho = mover_para_duplicados(arquivo, pasta_duplicados)
+                                self.log_message(f"Arquivo duplicado movido: {arquivo} -> {novo_caminho}")
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
